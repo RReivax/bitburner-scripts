@@ -1,0 +1,61 @@
+{ BaseBitburner } from '../../utils/BaseBitburner.civet'
+{ portsManagerConfig } from './PortsManagerConfig.civet'
+
+export class PortsManagerClient extends BaseBitburner
+    /**
+     * Refresh the claimable code (used to initialize or if it is missing)
+     */
+    refresh()
+        @ns.writePort portsManagerConfig.request_port, JSON.stringify { command: 'refresh' }
+        return
+
+    /**
+     * Claim a port. If not port is given, a port from the pool of ports will automatically be claimed.
+     * @param cache The file to cache the port in to avoid re-claiming
+     * @param port The port to claim
+     */
+    claim(cache?: string, port?: number): Promise<number>
+        portToClaim := port || await #readPublishedPort()
+        code := #generateCode()
+
+        claimQuery :=
+            command: 'claim'
+            params:
+                port: portToClaim
+                code: code
+
+        @ns.writePort portsManagerConfig.request_port, JSON.stringify claimQuery
+        loop
+            const res = @ns.peek portToClaim
+            if res !== 'NULL PORT DATA' && typeof res === 'string'
+                confirmationResult := JSON.parse(res) as { command: string, code: string }
+                if confirmationResult.command === 'confirm' && confirmationResult.code === code
+                    @ns.clearPort portToClaim
+                    @logger.success `Claimed port ${portToClaim}`
+                    return portToClaim
+                else
+                    @logger.error ```
+                        Confirmation failed. 
+                        Expected code: ${code}
+                        Received: ${JSON.stringify confirmationResult}
+                        Port was already used? 
+                        ```
+                    throw new Error `Could not claim port ${portToClaim}`
+
+            // TODO: Should abort after N tries
+            @logger.info `Retrying claim confirmation for port ${portToClaim}`
+            await @ns.sleep 100 
+
+
+    #readPublishedPort()        
+        loop
+            publishedPort := @ns.readPort portsManagerConfig.publish_port
+            await @refresh() 
+            if publishedPort !== 'NULL PORT DATA' && typeof publishedPort === 'number'
+                return publishedPort
+
+            @logger.warn `No published port. Sending refresh request.`
+            await @ns.sleep 100
+    
+    #generateCode()
+        return (Math.random() + 1).toString(36).substring(7)

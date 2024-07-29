@@ -1,0 +1,100 @@
+{ BaseBitburner } from '../../utils/BaseBitburner.civet'
+{ portsManagerConfig } from './PortsManagerConfig.civet'
+
+
+export class PortsManager extends BaseBitburner
+    commands = ['refresh', 'claim', 'free'] as const
+
+    start(): Promise<void>
+        @logger.info 'Starting PortsManager'
+        loop
+            query := @ns.readPort portsManagerConfig.request_port
+            if query === 'NULL PORT DATA'
+                await @ns.sleep 1000
+            else if typeof query === 'number'
+                @logger.warn `Query should be JSON, not number`
+            else
+                @logger.info 'PortsManager received query'
+                @logger.info query 
+                try
+                    parsedQuery := JSON.parse(query)
+                    #handleQuery(parsedQuery)
+                catch e
+                    @logger.error `Error: ${e}. Query: ${query}`
+
+    #handleQuery(query: Record<string, any>)
+        if query.command === undefined && typeof query.command !== 'string'
+            throw new Error 'Missing command in query'  
+        if (@commands.indexOf query.command) === -1
+            throw new Error `Unkown command "${query.command}"`        
+            
+        switch (query.command as typeof @commands[number])
+            when 'refresh'
+                @refresh()
+            when 'claim'
+                @claim(query.params.port, query.params.code)
+
+    /**
+     * Refresh the next available port
+     */
+    refresh(): void
+        claimed: number[] := []
+
+        stateData := @ns.peek portsManagerConfig.state_port
+        if stateData !== 'NULL PORT DATA'
+            if typeof stateData === 'number'
+                throw new Error 'Reading state should not be a number'
+
+            state := JSON.parse(stateData) as { claimed: number[] }
+            claimed.push ...state.claimed
+
+        for i of [portsManagerConfig.pool_min_port...portsManagerConfig.pool_max_port]
+            if claimed.includes i
+                continue  
+            @logger.info `Refresh port: ${claimed}`
+            @ns.clearPort portsManagerConfig.publish_port
+            @ns.writePort portsManagerConfig.publish_port, i
+            break
+
+
+    /**
+     * Claim a port
+     * @param port The port to claim
+     * @param code The client code to ensure ownership in case of concurrent requests
+     */
+    claim(port: number, code: string): void
+        @logger.info `Running claim with port ${port} and code ${code}` 
+
+        claimed: number[] := []
+        stateData := @ns.peek portsManagerConfig.state_port
+        if stateData !== 'NULL PORT DATA'
+            if typeof stateData === 'number'
+                throw new Error 'Reading state should not be a number'
+
+            state := JSON.parse(stateData) as { claimed: number[] }
+            if state.claimed.indexOf(port) !== -1
+                throw new Error `Port ${port} is not available`
+
+            claimed.push ...state.claimed
+
+        claimed.push port
+        newState :=
+            claimed: [...new Set claimed]
+
+        @ns.clearPort portsManagerConfig.state_port
+
+        @logger.info `Writing new state: ${JSON.stringify newState}`
+        @ns.writePort portsManagerConfig.state_port, JSON.stringify newState
+
+        confirmationMessage :=
+            command: 'confirm'
+            code: code
+
+        @ns.writePort port, JSON.stringify confirmationMessage
+
+
+    
+
+export function main(ns: NS)
+    portsManager := new PortsManager(ns)
+    portsManager.start()

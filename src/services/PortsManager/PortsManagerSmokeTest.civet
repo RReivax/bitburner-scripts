@@ -1,0 +1,46 @@
+{ Logger } from '../../utils/Logger.civet'
+{ portsManagerConfig } from './PortsManagerConfig.civet'
+{ PortsManagerClient } from './PortsManagerClient.civet'
+{ BaseBitburner } from '../../utils/BaseBitburner.civet'
+
+class PortsManagerSmokeTest extends BaseBitburner
+    test()
+        @logger.info 'Starting PortsManager Smoke Test'
+        servicePid := @ns.run '/services/PortsManager/PortsManagerService.js'
+        @ns.tail servicePid
+
+        client := new PortsManagerClient(@ns)
+
+        @logger.info `Publish: ${@ns.peek portsManagerConfig.publish_port}`
+        @logger.info `State: ${@ns.peek portsManagerConfig.state_port}`
+
+        @logger.info 'Refreshing ports'
+        await client.refresh()
+
+        await @ns.sleep 1000
+
+        claimedPort := await client.claim()
+        @logger.info `Claimed port ${claimedPort}`
+
+        @logger.info `Publish: ${@ns.peek portsManagerConfig.publish_port}`
+        @logger.info `State: ${@ns.peek portsManagerConfig.state_port}`
+
+        published := @ns.peek portsManagerConfig.publish_port
+        await @ns.sleep 1000
+        @logger.info `Publish: ${@ns.peek portsManagerConfig.publish_port}`
+        @logger.info `Final state: ${@ns.peek portsManagerConfig.state_port}`
+
+        @logger.info `Killing PortsManagerService (pid ${servicePid})`
+        @ns.kill servicePid
+
+    reset()
+        @ns.clearPort portsManagerConfig.publish_port
+        @ns.clearPort portsManagerConfig.state_port
+        @ns.clearPort portsManagerConfig.request_port
+
+
+export function main(ns: NS)
+    smokeTest := new PortsManagerSmokeTest(ns)
+    await smokeTest.reset()
+    await smokeTest.test()
+    return

@@ -1,0 +1,6 @@
+export portsManagerConfig :=
+    request_port: 10 
+    publish_port: 11 
+    state_port: 12
+    pool_min_port: 50000
+    pool_max_port: 59999
