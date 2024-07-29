@@ -1,0 +1,17 @@
+export class Logger
+    ns: NS;
+
+    constructor(ns: NS)
+        @ns = ns
+
+    info(msg: string)
+        @ns.print `INFO: ${msg}`
+
+    warn(msg: string)
+        @ns.print `WARN: ${msg}`
+
+    error(msg: string)
+        @ns.print `ERROR: ${msg}`
+
+    success(msg: string)
+        @ns.print `SUCCESS: ${msg}`

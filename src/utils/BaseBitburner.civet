@@ -1,0 +1,9 @@
+{ Logger } from './Logger.civet'
+
+export abstract class BaseBitburner
+    ns: NS;
+    logger: Logger
+
+    constructor(ns: NS)
+        @ns = ns
+        @logger = new Logger(ns)    
