@@ -4,3 +4,6 @@ export portsManagerConfig :=
     state_port: 12
     pool_min_port: 50000
     pool_max_port: 59999
+
+    client_claim_port_retry_wait: 1000
+    client_claim_port_retries: 10

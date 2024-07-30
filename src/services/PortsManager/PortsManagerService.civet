@@ -64,6 +64,12 @@ export class PortsManager extends BaseBitburner
      */
     claim(port: number, code: string): void
         @logger.info `Running claim with port ${port} and code ${code}` 
+        if [
+            portsManagerConfig.publish_port, 
+            portsManagerConfig.state_port, 
+            portsManagerConfig.request_port
+        ].includes port
+            throw new Error `Port ${port} is reserved`
 
         claimed: number[] := []
         stateData := @ns.peek portsManagerConfig.state_port
@@ -85,6 +91,8 @@ export class PortsManager extends BaseBitburner
 
         @logger.info `Writing new state: ${JSON.stringify newState}`
         @ns.writePort portsManagerConfig.state_port, JSON.stringify newState
+
+        @refresh()
 
         confirmationMessage :=
             command: 'confirm'
