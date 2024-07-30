@@ -6,6 +6,10 @@ export type QueryHostResponseDTO =
     maxRam: number
     availableRam: number
     minSecurityLevel: number
+    currentSecurityLevel: number
+    oneThreadWeakenAmount: number
+    maxMoney: number
+    currentMoney: number
  
 export type GetNeighboursResponseDTO =
     hostname: string
@@ -55,11 +59,18 @@ export class ScannerService extends BaseBitburner
         @logger.info `Scanning host: ${hostname}`
         response: QueryHostResponseDTO :=
             hostname: hostname
+            // RAM
             maxRam: @ns.getServerMaxRam hostname
             availableRam: (@ns.getServerMaxRam hostname) - (@ns.getServerUsedRam hostname)
+            // Security
             minSecurityLevel: @ns.getServerMinSecurityLevel hostname
-
-
+            currentSecurityLevel: @ns.getServerSecurityLevel hostname
+            oneThreadWeakenAmount: @ns.weakenAnalyze 1
+            // Money
+            maxMoney: @ns.getServerMaxMoney hostname
+            currentMoney: @ns.getServerMoneyAvailable hostname
+            
+            
         @ns.writePort responsePort, JSON.stringify response
 
 
@@ -75,6 +86,7 @@ export class ScannerService extends BaseBitburner
             neighbours: neighbours
 
         @ns.writePort responsePort, JSON.stringify response
+
 
 export function main(ns: NS)
     scanner := new ScannerService(ns)

@@ -36,7 +36,7 @@ export class ScannerClient extends BaseBitburner
                 @logger.success `Received response from Scanner Service: ${response}`
                 return (JSON.parse response) as ResponseDTO
 
-            @logger.info `Waiting for neighbours response...`
+            @logger.info `Waiting for Scanner Service response...`
             await @ns.sleep 1000
 
 
