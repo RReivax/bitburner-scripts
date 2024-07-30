@@ -52,11 +52,14 @@ export class PortsManagerClient extends BaseBitburner
         loop
             publishedPort := @ns.readPort portsManagerConfig.publish_port
             if publishedPort !== 'NULL PORT DATA' && typeof publishedPort === 'number'
+                @logger.info `Got published port: ${publishedPort}`
                 return publishedPort
 
             @logger.warn `No published port. Sending refresh request.`
             @refresh()
             await @ns.sleep 100
+
+        
     
     #generateCode()
         return (Math.random() + 1).toString(36).substring(7)

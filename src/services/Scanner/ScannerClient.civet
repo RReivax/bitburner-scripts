@@ -1,29 +1,44 @@
 { BaseBitburner } from '../../utils/BaseBitburner.civet'
 { scannerConfig } from './ScannerConfig.civet'
 { PortsManagerClient } from '../PortsManager/PortsManagerClient.civet'
-{ ScanResponseDTO } from './ScannerService.civet'
+{ QueryHostResponseDTO, GetNeighboursResponseDTO } from './ScannerService.civet'
 
 export class ScannerClient extends BaseBitburner
     queryHost(hostname: string)
-        @logger.info `Querying host: ${hostname}`
-        portsClient := new PortsManagerClient(@ns)
-        reservedPort := await portsClient.claim()
-        @logger.success `Rerserved port ${reservedPort}`
         query :=
             command: 'query_host'
             params:
                 hostname: hostname
-                responsePort: reservedPort
+
+        return #queryScannerService<QueryHostResponseDTO>(query)
+
+    getNeighbours(hostname: string)
+        query :=
+            command: 'get_neighbours'
+            params:
+                hostname: hostname
+        
+        return #queryScannerService<GetNeighboursResponseDTO>(query) 
+
+
+    #queryScannerService<ResponseDTO>(query: Record<string, any>)
+        @logger.info `Querying Scanner Service`
+        portsClient := new PortsManagerClient(@ns)
+        reservedPort := await portsClient.claim()
+        query.params.responsePort = reservedPort
+        @logger.success `Rerserved port ${reservedPort}`
 
         @ns.writePort scannerConfig.query_scan_host_port, JSON.stringify query
         @logger.info `Query sent to Scanner Service. Waiting for response...`
         loop
-            scanResult := @ns.readPort reservedPort
-            if scanResult !== 'NULL PORT DATA'
-                @logger.success `Received response from Scanner Service: ${scanResult}`
-                return (JSON.parse scanResult) as ScanResponseDTO
-            @logger.info `Waiting for scan response...`
+            response := @ns.readPort reservedPort
+            if response !== 'NULL PORT DATA'
+                @logger.success `Received response from Scanner Service: ${response}`
+                return (JSON.parse response) as ResponseDTO
+
+            @logger.info `Waiting for neighbours response...`
             await @ns.sleep 1000
+
 
     
 

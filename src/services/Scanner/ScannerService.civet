@@ -1,13 +1,18 @@
 { scannerConfig } from './ScannerConfig.civet'
 { BaseBitburner } from '../../utils/BaseBitburner.civet'
 
-export type ScanResponseDTO = {
-        hostname: string
-        maxRam: number
-    }
+export type QueryHostResponseDTO =
+    hostname: string
+    maxRam: number
+    availableRam: number
+    minSecurityLevel: number
+ 
+export type GetNeighboursResponseDTO =
+    hostname: string
+    neighbours: string[]
 
 export class ScannerService extends BaseBitburner
-    commands = ['scan'] as const
+    commands = ['query_host', 'get_neighbours'] as const
 
     start(): Promise<void>
         @logger.info `Starting Scanner Service. Listening on port ${scannerConfig.query_scan_host_port}`
@@ -34,20 +39,42 @@ export class ScannerService extends BaseBitburner
             throw new Error `Unkown command "${query.command}"`        
 
         switch (query.command as typeof @commands[number])
-            when 'scan'
+            when 'query_host'
                 if query.params.hostname === undefined || query.params.responsePort === undefined
                     throw new Error `Missing hostname or responsePort in query params ${JSON.stringify query}`
 
-                @scan(query.params.hostname, query.params.responsePort)
+                @queryHost query.params.hostname, query.params.responsePort
+            when 'get_neighbours'
+                if query.params.hostname === undefined || query.params.responsePort === undefined
+                    throw new Error `Missing hostname or responsePort in query params ${JSON.stringify query}`
 
-    scan(hostname: string, responsePort: number): void
+                @getNeighbours query.params.hostname, query.params.responsePort
+
+
+    queryHost(hostname: string, responsePort: number): void
         @logger.info `Scanning host: ${hostname}`
-        response: ScanResponseDTO :=
+        response: QueryHostResponseDTO :=
             hostname: hostname
             maxRam: @ns.getServerMaxRam hostname
+            availableRam: (@ns.getServerMaxRam hostname) - (@ns.getServerUsedRam hostname)
+            minSecurityLevel: @ns.getServerMinSecurityLevel hostname
+
 
         @ns.writePort responsePort, JSON.stringify response
 
+
+    /**
+     * Get the list of hosts accessible from the given host 
+     */
+    getNeighbours(hostname: string, responsePort: number)
+        @logger.info `Getting neighbours of ${hostname}`
+        neighbours := @ns.scan hostname
+
+        response: GetNeighboursResponseDTO :=
+            hostname: hostname
+            neighbours: neighbours
+
+        @ns.writePort responsePort, JSON.stringify response
 
 export function main(ns: NS)
     scanner := new ScannerService(ns)
