@@ -1,0 +1,59 @@
+{ BaseBitburner } from '../../utils/BaseBitburner.civet'
+{ ScannerClient } from '../Scanner/ScannerClient.civet'
+
+export class SelfHack extends BaseBitburner
+    hostname: string
+    hostData?: Awaited<ReturnType<ScannerClient['queryHost']>>
+
+    constructor(ns: NS, hostname: string)
+        super ns
+        @hostname = hostname
+
+    refreshHostData()
+        scannerClient := new ScannerClient @ns
+        @hostData = await scannerClient.queryHost @hostname
+        return
+
+    run()
+        @logger.info `Running on ${@hostname}` 
+        await @refreshHostData()
+        @logger.info `Host data: ${JSON.stringify @hostData}`
+        await @fullWeaken()
+        await @fullGrow()
+        return
+
+
+    fullWeaken()
+        @logger.info `Full weaken on ${@hostname}`
+        while (@hostData!.currentSecurityLevel - @hostData!.oneThreadWeakenAmount) >= @hostData!.minSecurityLevel
+            @logger.info `Weakening ${@hostname} from ${@hostData!.currentSecurityLevel} to ${@hostData!.minSecurityLevel}`
+            await @ns.weaken @hostname
+            await @refreshHostData()
+        return
+
+    async fullGrow() 
+        @logger.info `Full grow on ${@hostname}`
+        if @hostData!.currentMoney < @hostData!.maxMoney
+            while @hostData!.currentMoney < @hostData!.maxMoney
+                @logger.info `Growing ${@hostname} from ${@hostData!.currentMoney} to ${@hostData!.maxMoney}`
+                await @ns.grow @hostname
+                await @refreshHostData()
+        return
+
+    async hack()
+        @logger.info `Hacking a few times`
+        for i in [0..5]
+            await @ns.hack @hostname
+
+        await @refreshHostData()
+        return
+
+
+export function main(ns: NS)
+    hostname := ns.args[0]
+    ns.print `Running on ${ns.args[0]}`
+    if !hostname || typeof hostname === 'number' || typeof hostname === 'boolean'
+        throw new Error 'Invalid hostname (number or boolean)'
+
+    selfHack := new SelfHack(ns, hostname)
+    await selfHack.run()

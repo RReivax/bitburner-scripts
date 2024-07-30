@@ -1,0 +1,68 @@
+{ BaseBitburner } from '../../utils/BaseBitburner.civet'
+{ ScannerClient } from '../../services/Scanner/ScannerClient.civet'
+
+class WormService extends BaseBitburner
+    discovedHosts: string[] = ['home']
+    pownedHosts: string[] = []
+
+    run(sourceHost: string)
+        @logger.info `Starting worm from ${sourceHost}`
+        neighbours := @ns.scan(sourceHost)
+        for neighbour of neighbours
+            if !@discovedHosts.includes(neighbour)
+                @discovedHosts.push(neighbour)
+                @logger.info `Discovered new host: ${neighbour}`
+                if @nukeHost(neighbour)
+                    @selfHack(neighbour)
+                @run(neighbour)
+
+        @logger.success `Worm done from ${sourceHost}`
+
+                
+    nukeHost(hostname: string): Boolean
+        @logger.info `Powning host: ${hostname}`
+        nukedPort .= 0
+        if @ns.fileExists('BruteSSH.exe', 'home')
+            @ns.brutessh(hostname)
+            nukedPort++
+
+        if @ns.fileExists('FTPCrack.exe', 'home')
+            @ns.ftpcrack(hostname)
+            nukedPort++
+
+        if (@ns.getServerNumPortsRequired hostname) <= nukedPort
+            @ns.nuke(hostname)
+            @pownedHosts.push(hostname)
+            @logger.success `Host powned: ${hostname}`
+            return true
+
+        @logger.warn `Host not powned: ${hostname}`
+        return false
+
+    
+    selfHack(hostname: string)
+        scriptRam := @ns.getScriptRam('SelfHack.js')
+        scannerClient := new ScannerClient(@ns)
+        hostData := await scannerClient.queryHost(hostname)
+
+        threads := Math.floor(hostData.availableRam / scriptRam)
+        @ns.scp '/services/Worm/SelfHack.js', 'home', `~/scripts/SelfHack.js`
+        pid := @ns.exec `/scripts/SelfHack.js`, hostname, threads, hostname
+        if pid !== 0
+            @logger.success `SelfHack launched on ${hostname}`
+        else 
+            @logger.error `Error launching SelfHack on ${hostname}`
+
+    
+    recap()
+        @logger.info `Discovered hosts: ${@discovedHosts}`
+        @logger.success `Powned hosts: ${@pownedHosts}`
+        @logger.info `Total hosts: ${@discovedHosts.length}`
+        @logger.success `Total powned: ${@pownedHosts.length}`
+
+
+export function main(ns: NS)
+    worm := new WormService(ns)
+    worm.run('home')
+    worm.recap()
+    return
