@@ -3,6 +3,7 @@ export class Logger
 
     constructor(ns: NS)
         @ns = ns
+        @ns.disableLog('sleep')
 
     info(msg: string)
         @ns.print `INFO: ${msg}`
