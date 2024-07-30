@@ -1,0 +1,54 @@
+{ scannerConfig } from './ScannerConfig.civet'
+{ BaseBitburner } from '../../utils/BaseBitburner.civet'
+
+export type ScanResponseDTO = {
+        hostname: string
+        maxRam: number
+    }
+
+export class ScannerService extends BaseBitburner
+    commands = ['scan'] as const
+
+    start(): Promise<void>
+        @logger.info `Starting Scanner Service. Listening on port ${scannerConfig.query_scan_host_port}`
+        while true
+            query := @ns.readPort scannerConfig.query_scan_host_port
+            if query === 'NULL PORT DATA'
+                await @ns.sleep 1000
+            else if typeof query === 'number'
+                @logger.warn `Query should be JSON, not number`
+            else
+                @logger.info 'ScannerService received query'
+                @logger.info query 
+                try
+                    parsedQuery := JSON.parse(query)
+                    #handleQuery(parsedQuery)
+                catch e
+                    @logger.error `Error parsing query: ${e}`
+
+
+    #handleQuery(query: Record<string, any>)
+        if query.command === undefined && typeof query.command !== 'string'
+            throw new Error 'Missing command in query'  
+        if (@commands.indexOf query.command) === -1
+            throw new Error `Unkown command "${query.command}"`        
+
+        switch (query.command as typeof @commands[number])
+            when 'scan'
+                if query.params.hostname === undefined || query.params.responsePort === undefined
+                    throw new Error `Missing hostname or responsePort in query params ${JSON.stringify query}`
+
+                @scan(query.params.hostname, query.params.responsePort)
+
+    scan(hostname: string, responsePort: number): void
+        @logger.info `Scanning host: ${hostname}`
+        response: ScanResponseDTO :=
+            hostname: hostname
+            maxRam: @ns.getServerMaxRam hostname
+
+        @ns.writePort responsePort, JSON.stringify response
+
+
+export function main(ns: NS)
+    scanner := new ScannerService(ns)
+    await scanner.start()

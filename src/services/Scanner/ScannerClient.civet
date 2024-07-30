@@ -1,0 +1,40 @@
+{ scannerConfig } from './ScannerConfig.civet'
+{ Logger } from '../../utils/Logger.civet'
+{ PortsManagerClient } from '../PortsManager/PortsManagerClient.civet'
+{ ScanResponseDTO } from './ScannerService.civet'
+
+export class ScannerClient
+    ns: NS;
+    logger: Logger
+
+    constructor(ns: NS)
+        @ns = ns
+        @logger = new Logger(ns)
+
+    queryHost(hostname: string)
+        @logger.info `Querying host: ${hostname}`
+        portsClient := new PortsManagerClient(@ns)
+        reservedPort := await portsClient.claim()
+        @logger.success `Rerserved port ${reservedPort}`
+        query :=
+            command: 'scan'
+            params:
+                hostname: hostname
+                responsePort: reservedPort
+
+        @ns.writePort scannerConfig.query_scan_host_port, JSON.stringify query
+        @logger.info `Query sent to Scanner Service. Waiting for response...`
+        loop
+            scanResult := @ns.readPort reservedPort
+            if scanResult !== 'NULL PORT DATA'
+                @logger.success `Received response from Scanner Service: ${scanResult}`
+                return (JSON.parse scanResult) as ScanResponseDTO
+            @logger.info `Waiting for scan response...`
+            await @ns.sleep 1000
+
+
+
+export function main(ns: NS)
+    scannerClient := new ScannerClient(ns)
+    scanResult := await scannerClient.queryHost('foodnstuff')
+    ns.tprint(scanResult)
