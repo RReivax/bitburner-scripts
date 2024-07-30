@@ -1,23 +1,16 @@
+{ BaseBitburner } from '../../utils/BaseBitburner.civet'
 { scannerConfig } from './ScannerConfig.civet'
-{ Logger } from '../../utils/Logger.civet'
 { PortsManagerClient } from '../PortsManager/PortsManagerClient.civet'
 { ScanResponseDTO } from './ScannerService.civet'
 
-export class ScannerClient
-    ns: NS;
-    logger: Logger
-
-    constructor(ns: NS)
-        @ns = ns
-        @logger = new Logger(ns)
-
+export class ScannerClient extends BaseBitburner
     queryHost(hostname: string)
         @logger.info `Querying host: ${hostname}`
         portsClient := new PortsManagerClient(@ns)
         reservedPort := await portsClient.claim()
         @logger.success `Rerserved port ${reservedPort}`
         query :=
-            command: 'scan'
+            command: 'query_host'
             params:
                 hostname: hostname
                 responsePort: reservedPort
@@ -31,6 +24,8 @@ export class ScannerClient
                 return (JSON.parse scanResult) as ScanResponseDTO
             @logger.info `Waiting for scan response...`
             await @ns.sleep 1000
+
+    
 
 
 
