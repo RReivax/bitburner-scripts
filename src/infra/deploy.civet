@@ -1,0 +1,17 @@
+{ BaseBitburner } from '../utils/BaseBitburner.civet'
+
+export class Deploy extends BaseBitburner
+    masterNode := 'home'
+
+    startServices(): void
+        @logger.info `Starting master services on ${this.masterNode}`
+        @ns.exec '../services/PortsManager/PortsManagerService.js', @masterNode
+        @ns.exec '../services/Scanner/ScannerService.js', @masterNode
+        @logger.success `Master services started on ${this.masterNode}`
+
+
+export function main (ns: NS)
+    deploy := new Deploy(ns)
+    deploy.startServices()
+    return
+    
