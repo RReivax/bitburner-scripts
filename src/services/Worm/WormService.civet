@@ -13,8 +13,8 @@ class WormService extends BaseBitburner
                 @discovedHosts.push(neighbour)
                 @logger.info `Discovered new host: ${neighbour}`
                 if @nukeHost(neighbour)
-                    @selfHack(neighbour)
-                @run(neighbour)
+                    await @selfHack(neighbour)
+                await @run(neighbour)
 
         @logger.success `Worm done from ${sourceHost}`
 
@@ -22,17 +22,29 @@ class WormService extends BaseBitburner
     nukeHost(hostname: string): Boolean
         @logger.info `Powning host: ${hostname}`
         nukedPort .= 0
-        if @ns.fileExists('BruteSSH.exe', 'home')
-            @ns.brutessh(hostname)
+        if @ns.fileExists 'BruteSSH.exe', 'home'
+            @ns.brutessh hostname
             nukedPort++
 
-        if @ns.fileExists('FTPCrack.exe', 'home')
-            @ns.ftpcrack(hostname)
+        if @ns.fileExists 'FTPCrack.exe', 'home'
+            @ns.ftpcrack hostname
+            nukedPort++
+
+        if @ns.fileExists 'relaySMTP.exe', 'home'
+            @ns.relaysmtp hostname
+            nukedPort++
+
+        if @ns.fileExists 'HTTPWorm.exe', 'home'
+            @ns.httpworm hostname
+            nukedPort++
+
+        if @ns.fileExists 'SQLInject.exe', 'home'
+            @ns.sqlinject hostname
             nukedPort++
 
         if (@ns.getServerNumPortsRequired hostname) <= nukedPort
-            @ns.nuke(hostname)
-            @pownedHosts.push(hostname)
+            @ns.nuke hostname
+            @pownedHosts.push hostname
             @logger.success `Host powned: ${hostname}`
             return true
 
@@ -41,13 +53,24 @@ class WormService extends BaseBitburner
 
     
     selfHack(hostname: string)
-        scriptRam := @ns.getScriptRam('SelfHack.js')
+        @logger.info `Running self hack on ${hostname}`
+        scriptRam := @ns.getScriptRam('/services/Worm/SelfHack.js')
         scannerClient := new ScannerClient(@ns)
         hostData := await scannerClient.queryHost(hostname)
 
-        threads := Math.floor(hostData.availableRam / scriptRam)
-        @ns.scp '/services/Worm/SelfHack.js', 'home', `~/scripts/SelfHack.js`
-        pid := @ns.exec `/scripts/SelfHack.js`, hostname, threads, hostname
+        threads := Math.floor hostData.availableRam / scriptRam
+        if threads === 0
+            @logger.warn `Not enough ram to run SelfHack on ${hostname}`
+            return
+
+        @logger.info ```
+            Available ram: ${hostData.availableRam}
+            Script ram: ${scriptRam}
+            Threads available: ${threads}
+        ```
+
+        @ns.scp '/services/Worm/SelfHack.js', hostname
+        pid := @ns.exec `/services/Worm/SelfHack.js`, hostname, threads, hostname
         if pid !== 0
             @logger.success `SelfHack launched on ${hostname}`
         else 
@@ -63,6 +86,6 @@ class WormService extends BaseBitburner
 
 export function main(ns: NS)
     worm := new WormService(ns)
-    worm.run('home')
+    await worm.run('home')
     worm.recap()
     return
