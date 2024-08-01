@@ -1,0 +1,123 @@
+{ BaseBitburner } from '../../utils/BaseBitburner.civet'
+
+export class HacknetService extends BaseBitburner
+    nodesStats: ReturnType<typeof @ns.hacknet.getNodeStats>[] := []
+
+    start()
+        @logger.info `Starting Hacknet service`
+        loop
+            @logger.info `Starting cluster upgrade loop`
+            await @refresh()
+            await @uniformizeLevels()
+            await @buyOrUpgrade()
+            @logger.info `Sleeping`
+            await @ns.sleep 10000
+
+
+    refresh()
+        maxNodes := @ns.hacknet.maxNumNodes()
+        numNodes := @ns.hacknet.numNodes()
+        @logger.info `Max nodes: ${maxNodes}`
+        @nodesStats.length = 0 // Clears array
+        for index of [0...numNodes]
+            @nodesStats.push @ns.hacknet.getNodeStats index
+
+
+    uniformizeLevels()
+        @logger.info `Uniformizing levels`
+        maxLevel := Math.max ...@nodesStats.map (node) => node.level
+        maxRam := Math.max ...@nodesStats.map (node) => node.ram
+        maxCores := Math.max ...@nodesStats.map (node) => node.cores
+        @logger.info `Max level: ${maxLevel}`
+        @logger.info `Max ram: ${maxRam}`
+        @logger.info `Max cores: ${maxCores}`
+        for node of @nodesStats
+            index := parseInt node.name.split('-')[2], 10
+            levelDiff := maxLevel - node.level
+            if levelDiff > 0
+                cost := @ns.hacknet.getLevelUpgradeCost index, levelDiff
+                while cost > @ns.getPlayer().money
+                    @logger.warn `Not enough money to upgrade level, sleeping...`
+                    await @ns.sleep 10000
+
+                @ns.hacknet.upgradeLevel index, levelDiff
+                @logger.success `Node ${node.name} upgraded from level ${node.level} to ${maxLevel}`
+
+            ramRiff := maxRam - node.ram
+            if ramRiff > 0
+                cost := @ns.hacknet.getRamUpgradeCost index, ramRiff
+                while cost > @ns.getPlayer().money
+                    @logger.warn `Not enough money to upgrade ram, sleeping...`
+                    await @ns.sleep 10000
+
+                @ns.hacknet.upgradeRam index, ramRiff
+                @logger.success `Node ${node.name} upgraded from ram ${node.ram} to ${maxRam}`
+
+            coresDiff := maxCores - node.cores
+            if coresDiff > 0
+                cost := @ns.hacknet.getCoreUpgradeCost index, coresDiff
+                while cost > @ns.getPlayer().money
+                    @logger.warn `Not enough money to upgrade cores, sleeping...`
+                    await @ns.sleep 10000
+
+                @ns.hacknet.upgradeCore index, coresDiff
+                @logger.success `Node ${node.name} upgraded from cores ${node.cores} to ${maxCores}`
+
+            @logger.success `Node ${node.name} uniformized`
+    
+        @logger.success `Done uniformizing levels`
+
+    buyOrUpgrade()
+        loop
+            playerMoney := @ns.getPlayer().money
+            // Purchase new node
+            if playerMoney < @ns.hacknet.getPurchaseNodeCost()
+                @logger.warn `Not enough money to buy a new node`
+            else
+                @ns.hacknet.purchaseNode()
+                @nodesStats.push @ns.hacknet.getNodeStats @nodesStats.length
+                @logger.success `Node ${@nodesStats.length} purchased`
+                continue
+
+            // Upgrade first node level
+            if playerMoney < @ns.hacknet.getLevelUpgradeCost 0
+                @logger.warn `Not enough money to upgrade level`
+            else
+                @ns.hacknet.upgradeLevel 0
+                @logger.success `Node 0 level upgraded`
+                continue
+
+            // Upgrade first node ram
+            if playerMoney < @ns.hacknet.getRamUpgradeCost 0
+                @logger.warn `Not enough money to upgrade ram`
+            else
+                @ns.hacknet.upgradeRam 0
+                @logger.success `Node 0 ram upgraded`
+                continue
+
+            // Upgrade first node cores
+            if playerMoney < @ns.hacknet.getCoreUpgradeCost 0
+                @logger.warn `Not enough money to upgrade cores`
+            else
+                @ns.hacknet.upgradeCore 0
+                @logger.success `Node 0 cores upgraded`
+                continue
+
+            return
+            
+
+
+
+        // @ns.hacknet.purchaseNode
+        // @ns.hacknet.upgradeCache
+        // @ns.hacknet.upgradeCore
+        // @ns.hacknet.upgradeLevel
+        // @ns.hacknet.getRamUpgradeCost
+        // @ns.hacknet.getLevelUpgradeCost
+        // @ns.hacknet.getCoreUpgradeCost
+        // @ns.hacknet.getCacheUpgradeCost
+        
+
+export function main(ns: NS)
+    hacknetService := new HacknetService(ns)
+    await hacknetService.start()
